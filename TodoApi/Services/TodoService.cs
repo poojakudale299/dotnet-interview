@@ -3,12 +3,13 @@ using TodoApi.Models;
 
 namespace TodoApi.Services
 {
-    public class TodoService
+    public class TodoService : ITodoService
     {
-        private string _connectionString = "Data Source=todos.db";
+        private readonly string _connectionString;
 
-        public TodoService()
+        public TodoService(IConfiguration configuration)
         {
+            _connectionString = configuration.GetConnectionString("DefaultConnection") ?? "Data Source=todos.db";
         }
 
         public Todo CreateTodo(Todo todo)
@@ -17,11 +18,15 @@ namespace TodoApi.Services
             connection.Open();
 
             var command = connection.CreateCommand();
-            command.CommandText = $@"
+            command.CommandText = @"
                 INSERT INTO Todos (Title, Description, IsCompleted, CreatedAt)
-                VALUES ('{todo.Title}', '{todo.Description}', {(todo.IsCompleted ? 1 : 0)}, '{DateTime.UtcNow.ToString("o")}');
+                VALUES ($title, $description, $isCompleted, $createdAt);
                 SELECT last_insert_rowid();
             ";
+            command.Parameters.AddWithValue("$title", todo.Title);
+            command.Parameters.AddWithValue("$description", (object?)todo.Description ?? DBNull.Value);
+            command.Parameters.AddWithValue("$isCompleted", todo.IsCompleted ? 1 : 0);
+            command.Parameters.AddWithValue("$createdAt", DateTime.UtcNow.ToString("o"));
 
             var id = Convert.ToInt32(command.ExecuteScalar());
             todo.Id = id;
@@ -45,7 +50,7 @@ namespace TodoApi.Services
                 {
                     Id = reader.GetInt32(0),
                     Title = reader.GetString(1),
-                    Description = reader.GetString(2),
+                    Description = reader.IsDBNull(2) ? null : reader.GetString(2),
                     IsCompleted = reader.GetInt32(3) == 1,
                     CreatedAt = DateTime.Parse(reader.GetString(4))
                 });
@@ -54,13 +59,14 @@ namespace TodoApi.Services
             return todos;
         }
 
-        public Todo GetTodoById(int id)
+        public Todo? GetTodoById(int id)
         {
             using var connection = new SqliteConnection(_connectionString);
             connection.Open();
 
             var command = connection.CreateCommand();
-            command.CommandText = $"SELECT * FROM Todos WHERE Id = {id}";
+            command.CommandText = "SELECT * FROM Todos WHERE Id = $id";
+            command.Parameters.AddWithValue("$id", id);
 
             using var reader = command.ExecuteReader();
             if (reader.Read())
@@ -69,7 +75,7 @@ namespace TodoApi.Services
                 {
                     Id = reader.GetInt32(0),
                     Title = reader.GetString(1),
-                    Description = reader.GetString(2),
+                    Description = reader.IsDBNull(2) ? null : reader.GetString(2),
                     IsCompleted = reader.GetInt32(3) == 1,
                     CreatedAt = DateTime.Parse(reader.GetString(4))
                 };
@@ -84,13 +90,17 @@ namespace TodoApi.Services
             connection.Open();
 
             var command = connection.CreateCommand();
-            command.CommandText = $@"
+            command.CommandText = @"
                 UPDATE Todos
-                SET Title = '{todo.Title}', Description = '{todo.Description}', IsCompleted = {(todo.IsCompleted ? 1 : 0)}
-                WHERE Id = {id}
+                SET Title = $title, Description = $description, IsCompleted = $isCompleted
+                WHERE Id = $id
             ";
+            command.Parameters.AddWithValue("$title", todo.Title);
+            command.Parameters.AddWithValue("$description", (object?)todo.Description ?? DBNull.Value);
+            command.Parameters.AddWithValue("$isCompleted", todo.IsCompleted ? 1 : 0);
+            command.Parameters.AddWithValue("$id", id);
 
-            var rowsAffected = command.ExecuteNonQuery();
+            command.ExecuteNonQuery();
 
             todo.Id = id;
             return todo;
@@ -102,7 +112,8 @@ namespace TodoApi.Services
             connection.Open();
 
             var command = connection.CreateCommand();
-            command.CommandText = $"DELETE FROM Todos WHERE Id = {id}";
+            command.CommandText = "DELETE FROM Todos WHERE Id = $id";
+            command.Parameters.AddWithValue("$id", id);
 
             var rowsAffected = command.ExecuteNonQuery();
             return rowsAffected > 0;

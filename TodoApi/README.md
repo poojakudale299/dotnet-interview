@@ -25,12 +25,13 @@ dotnet run
 
 ## API Endpoints
 
-All endpoints are under `/api`:
+All endpoints are under `/api/todos`:
 
-- `POST /api/createTodo` - Create a new TODO item
-- `POST /api/getTodo` - Get TODO item(s)
-- `POST /api/updateTodo` - Update a TODO item
-- `POST /api/deleteTodo` - Delete a TODO item
+- `POST /api/todos` - Create a new TODO item
+- `GET /api/todos` - Get all TODO items
+- `GET /api/todos/{id}` - Get a TODO item by ID
+- `PUT /api/todos/{id}` - Update a TODO item
+- `DELETE /api/todos/{id}` - Delete a TODO item
 
 ## Testing
 
